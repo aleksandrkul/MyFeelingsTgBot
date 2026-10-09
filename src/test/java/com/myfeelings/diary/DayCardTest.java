@@ -66,6 +66,34 @@ class DayCardTest {
     }
 
     @Test
+    @DisplayName("the whole closing is one message that changes as the owner answers")
+    void oneMessageChangesInPlace() throws Exception {
+        try (BotHarness h = harness()) {
+            LocalDate today = DiaryDay.today();
+            h.say("мысль до закрытия");
+            h.clear();
+
+            h.say("/new");
+            h.say("что осталось");
+            h.tap("feel:warm");
+            h.tap("talk:no");
+            h.tap("card:ok");
+
+            // Entries are acknowledged separately; the closing itself is one message from start to end.
+            long closingMessages = h.replies.stream().filter(r -> !r.startsWith("Записал за")).count();
+            assertEquals(1, closingMessages, h.replies.toString());
+            assertEquals(4, h.edits.size(), "feeling, talked, card, saved: " + h.edits);
+
+            String last = h.lastReply();
+            assertTrue(last.contains("Карточка за " + today), "the saved card stays on screen: " + last);
+            assertTrue(last.contains("Чувство: тепло"), last);
+            assertTrue(last.endsWith("Сохранил карточку за " + today + "."), last);
+            assertTrue(h.buttons.isEmpty(), "saving removes the buttons: " + h.buttons);
+            assertTrue(h.repository().card(today).isConfirmed());
+        }
+    }
+
+    @Test
     @DisplayName("text sent instead of a button is kept and the question asked again")
     void strayTextIsKept() throws Exception {
         try (BotHarness h = harness()) {

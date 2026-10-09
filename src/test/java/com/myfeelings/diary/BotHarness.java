@@ -15,6 +15,7 @@ import java.lang.reflect.Proxy;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -35,8 +36,19 @@ class BotHarness implements AutoCloseable {
     static final long CHAT = 4242L;
     static final long STRANGER = 999L;
 
-    /** Every text the bot sent, oldest first. */
+    /**
+     * Every message the bot sent, oldest first, as it reads now: a message the bot later edited
+     * shows its latest text here, the way it looks in the chat.
+     */
     final List<String> replies = Collections.synchronizedList(new ArrayList<>());
+
+    /** The Telegram id of each entry of {@link #replies}, same order. */
+    private final List<Integer> replyIds = Collections.synchronizedList(new ArrayList<>());
+
+    /** Every edit the bot made, oldest first, as "messageId: new text". */
+    final List<String> edits = Collections.synchronizedList(new ArrayList<>());
+
+    private final AtomicInteger nextMessageId = new AtomicInteger(100);
 
     /** Buttons of the most recent message that carried any, as "label=callbackData". */
     final List<String> buttons = Collections.synchronizedList(new ArrayList<>());
@@ -150,6 +162,8 @@ class BotHarness implements AutoCloseable {
 
     void clear() {
         replies.clear();
+        replyIds.clear();
+        edits.clear();
         buttons.clear();
     }
 
@@ -184,25 +198,50 @@ class BotHarness implements AutoCloseable {
                 BotHarness.class.getClassLoader(), new Class<?>[]{TelegramClient.class},
                 (proxy, method, args) -> {
                     if (method.getName().equals("execute") && args != null && args.length > 0) {
-                        record(args[0]);
+                        return record(args[0]);
                     }
                     return null;
                 });
     }
 
-    private void record(Object request) {
+    /** Records one request and answers it the way Telegram would: a sent message comes back with an id. */
+    private Object record(Object request) {
         if (request instanceof SendMessage send) {
+            int id = nextMessageId.incrementAndGet();
             replies.add(send.getText());
+            replyIds.add(id);
             if (send.getReplyMarkup() instanceof InlineKeyboardMarkup keyboard) {
+                showButtons(keyboard);
+            }
+            return Message.builder().messageId(id).date(0)
+                    .chat(Chat.builder().id(Long.parseLong(send.getChatId())).type("private").build())
+                    .text(send.getText()).build();
+        } else if (request instanceof EditMessageText edit) {
+            synchronized (replies) {
+                int index = replyIds.indexOf(edit.getMessageId());
+                if (index < 0) {
+                    throw new AssertionError("edit of a message the bot never sent: " + edit.getMessageId());
+                }
+                replies.set(index, edit.getText());
+            }
+            edits.add(edit.getMessageId() + ": " + edit.getText());
+            if (edit.getReplyMarkup() instanceof InlineKeyboardMarkup keyboard) {
+                showButtons(keyboard);
+            } else {
                 buttons.clear();
-                keyboard.getKeyboard().forEach(row -> row.forEach(button ->
-                        buttons.add(button.getText() + "=" + button.getCallbackData())));
             }
         } else if (request instanceof AnswerCallbackQuery) {
             callbacksAnswered.incrementAndGet();
         } else if (request instanceof SendChatAction) {
             typingActions.incrementAndGet();
         }
+        return null;
+    }
+
+    private void showButtons(InlineKeyboardMarkup keyboard) {
+        buttons.clear();
+        keyboard.getKeyboard().forEach(row -> row.forEach(button ->
+                buttons.add(button.getText() + "=" + button.getCallbackData())));
     }
 
     private void closeParts() throws Exception {

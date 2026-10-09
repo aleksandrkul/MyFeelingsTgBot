@@ -161,7 +161,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         if (text.startsWith("/")) {
             handleCommand(message, text);
         } else if (day.isActive()) {
-            day.handleText(message, text);
+            day.handleText(text);
         } else {
             saveEntry(message, DiaryDay.today(), text);
         }
