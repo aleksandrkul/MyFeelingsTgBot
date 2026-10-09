@@ -233,7 +233,7 @@ Open findings, on synthetic entries with `qwen2.5:7b`:
 - [ ] Daily backup of `diary.db` (script or built-in task).
 - [ ] Autostart as a service (Windows: Task Scheduler / NSSM; Linux: systemd) with automatic restart on failure.
 - [ ] Logs must not contain entry text (only IDs and lengths).
-- [ ] README: how to run and how to restore from a backup.
+- [~] README: how to run is done; how to restore from a backup waits on the backup itself.
 
 ### Stage 7. Onboarding and names
 - [x] After the language, ask how to address the owner and who the diary is about; store both in `settings`.
@@ -285,7 +285,8 @@ Open findings, on synthetic entries with `qwen2.5:7b`:
 
 ## What is left
 
-`BACKLOG.md` holds the open work: the remaining stages, the refactoring still worth doing, the gaps
+`CLAUDE.md` holds the conventions that are easy to get wrong. `TASKS.md` holds the same work as
+ready-to-run prompts, with notes on which can run in parallel. `BACKLOG.md` holds the open work: the remaining stages, the refactoring still worth doing, the gaps
 in the product's logic and the user interactions that need attention, ordered by what it costs to
 leave them undone.
 
