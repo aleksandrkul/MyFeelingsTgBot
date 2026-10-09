@@ -192,15 +192,6 @@ class DayFlow {
                 && telegram.edit(closing.chatId(), messageId, text, rows)) {
             return;
         }
-        String head = "";
-        if (text.length() > Telegram.MESSAGE_LIMIT) {
-            // A day with many entries: the card goes out in as many messages as it takes, and only
-            // the last paragraph — the question — carries the buttons and is edited from here on.
-            int cut = text.lastIndexOf("\n\n");
-            head = text.substring(0, Math.max(cut, 0));
-            text = cut < 0 ? "" : text.substring(cut + 2);
-            telegram.send(closing.chatId(), head);
-        }
         Message sent = rows.isEmpty()
                 ? telegram.send(closing.chatId(), text)
                 : telegram.sendWithButtons(closing.chatId(), text, rows);

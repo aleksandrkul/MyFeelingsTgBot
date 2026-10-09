@@ -227,8 +227,13 @@ class BotHarness implements AutoCloseable {
     }
 
     /** Records one request and answers it the way Telegram would: a sent message comes back with an id. */
-    private Object record(Object request) {
+    private Object record(Object request) throws Exception {
         if (request instanceof SendMessage send) {
+            if (send.getText().length() > Telegram.MESSAGE_LIMIT) {
+                // What Telegram does: the whole request is refused.
+                throw new org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException(
+                        "[400] Bad Request: message is too long");
+            }
             int id = nextMessageId.incrementAndGet();
             replies.add(send.getText());
             replyIds.add(id);

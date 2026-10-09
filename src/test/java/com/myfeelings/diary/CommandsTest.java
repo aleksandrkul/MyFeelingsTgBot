@@ -88,6 +88,18 @@ class CommandsTest {
     }
 
     @Test
+    @DisplayName("/undo on an entry near Telegram's length limit still offers its buttons")
+    void undoLongEntry() throws Exception {
+        try (BotHarness h = harness()) {
+            h.say("x".repeat(4000));
+            h.say("/undo");
+
+            assertTrue(h.replies.stream().allMatch(r -> r.length() <= Telegram.MESSAGE_LIMIT), "a message was too long");
+            assertEquals(List.of("Delete=undo:yes", "Cancel=undo:no"), h.buttons);
+        }
+    }
+
+    @Test
     @DisplayName("Cancel leaves the entry, and a second tap on the same offer does nothing")
     void undoCancelled() throws Exception {
         try (BotHarness h = harness()) {
