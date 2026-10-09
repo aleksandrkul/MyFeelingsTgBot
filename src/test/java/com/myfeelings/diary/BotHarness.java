@@ -22,6 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 /**
@@ -55,6 +56,12 @@ class BotHarness implements AutoCloseable {
 
     /** How many buttons each row of the same keyboard holds. */
     final List<Integer> buttonRows = Collections.synchronizedList(new ArrayList<>());
+
+    /** Labels of the persistent keyboard the bot attached last, and how many times it attached one. */
+    final List<String> keyboard = Collections.synchronizedList(new ArrayList<>());
+    final AtomicInteger keyboardsAttached = new AtomicInteger();
+    volatile String keyboardPlaceholder;
+    volatile boolean keyboardPersistent;
 
     final AtomicInteger callbacksAnswered = new AtomicInteger();
     final AtomicInteger typingActions = new AtomicInteger();
@@ -213,8 +220,15 @@ class BotHarness implements AutoCloseable {
             int id = nextMessageId.incrementAndGet();
             replies.add(send.getText());
             replyIds.add(id);
-            if (send.getReplyMarkup() instanceof InlineKeyboardMarkup keyboard) {
-                showButtons(keyboard);
+            if (send.getReplyMarkup() instanceof InlineKeyboardMarkup inline) {
+                showButtons(inline);
+            } else if (send.getReplyMarkup() instanceof ReplyKeyboardMarkup menu) {
+                keyboard.clear();
+                menu.getKeyboard().forEach(row -> row.forEach(button -> keyboard.add(button.getText())));
+                keyboardPlaceholder = menu.getInputFieldPlaceholder();
+                keyboardPersistent = Boolean.TRUE.equals(menu.getIsPersistent())
+                        && Boolean.TRUE.equals(menu.getResizeKeyboard());
+                keyboardsAttached.incrementAndGet();
             }
             return Message.builder().messageId(id).date(0)
                     .chat(Chat.builder().id(Long.parseLong(send.getChatId())).type("private").build())

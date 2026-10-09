@@ -267,6 +267,9 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         if (text.equalsIgnoreCase(messages.get("trigger.summary"))) {
             return "/summary";
         }
+        if (text.equalsIgnoreCase(messages.get("trigger.close"))) {
+            return "/new";
+        }
         return null;
     }
 
@@ -396,9 +399,13 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
                 settings.saveLanguage(chosen);
                 messages.use(chosen);
                 languageChosen = true;
-                telegram.send(query.getMessage().getChatId(), messages.get("language.set"));
-                if (!onboarding.isDone()) {
-                    onboarding.ask(query.getMessage().getChatId());
+                Long chatId = query.getMessage().getChatId();
+                if (onboarding.isDone()) {
+                    // The labels are localized, so a new language means a new keyboard.
+                    telegram.sendWithKeyboard(chatId, messages.get("language.set"), Menu.keyboard(messages));
+                } else {
+                    telegram.send(chatId, messages.get("language.set"));
+                    onboarding.ask(chatId);
                 }
             }
         } else if (origin != null && DayFlow.owns(data)) {
