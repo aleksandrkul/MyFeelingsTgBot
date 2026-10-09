@@ -2,7 +2,6 @@ package com.myfeelings.diary;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -23,8 +22,6 @@ class DayFlow {
     static final String FEELING_CALLBACK = "feel:";
     static final String TALKED_CALLBACK = "talk:";
     static final String CARD_CALLBACK = "card:";
-
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private final DiaryRepository repository;
     private final Settings settings;
@@ -179,7 +176,7 @@ class DayFlow {
             out.append(messages.get("day.card.no.text")).append('\n');
         } else {
             for (Entry entry : entries) {
-                out.append(entry.createdAt().atZone(Config.ZONE).format(TIME))
+                out.append(entry.time())
                         .append("  ").append(entry.text()).append('\n');
             }
         }

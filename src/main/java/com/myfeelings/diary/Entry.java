@@ -14,9 +14,13 @@ public record Entry(long id, LocalDate entryDate, Instant createdAt, String text
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
+    /** The time of day the entry was written, in the diary's timezone. The one place it is formatted. */
+    String time() {
+        return createdAt.atZone(Config.ZONE).format(TIME);
+    }
+
     /** How this entry reads when shown on its own, by {@code /last} and by {@code /undo}. */
     String shown(Messages messages) {
-        return messages.get("entry.shown", entryDate,
-                createdAt.atZone(Config.ZONE).format(TIME), text);
+        return messages.get("entry.shown", entryDate, time(), text);
     }
 }
