@@ -91,7 +91,7 @@ class CommandsTest {
     @DisplayName("/undo on an entry near Telegram's length limit still offers its buttons")
     void undoLongEntry() throws Exception {
         try (BotHarness h = harness()) {
-            h.say("x".repeat(4000));
+            h.say("x".repeat(4090));
             h.say("/undo");
 
             assertTrue(h.replies.stream().allMatch(r -> r.length() <= Telegram.MESSAGE_LIMIT), "a message was too long");
