@@ -184,13 +184,22 @@ class DayFlow {
     /**
      * Puts the conversation's current state on screen: the one message it lives in is edited, so the
      * chat does not fill up with the bot's own questions. A message that cannot be edited — it was
-     * never sent, or the text is too long for Telegram — is replaced by a new one.
+     * never sent, or the text is too long for Telegram — is replaced by a new one, split if need be.
      */
     private void show(String text, List<InlineKeyboardRow> rows) {
         Integer messageId = closing.messageId();
         if (messageId != null && text.length() <= Telegram.MESSAGE_LIMIT
                 && telegram.edit(closing.chatId(), messageId, text, rows)) {
             return;
+        }
+        String head = "";
+        if (text.length() > Telegram.MESSAGE_LIMIT) {
+            // A day with many entries: the card goes out in as many messages as it takes, and only
+            // the last paragraph — the question — carries the buttons and is edited from here on.
+            int cut = text.lastIndexOf("\n\n");
+            head = text.substring(0, Math.max(cut, 0));
+            text = cut < 0 ? "" : text.substring(cut + 2);
+            telegram.send(closing.chatId(), head);
         }
         Message sent = rows.isEmpty()
                 ? telegram.send(closing.chatId(), text)
