@@ -58,6 +58,14 @@ class Onboarding {
         return settings.personName().isEmpty() ? Step.PERSON_NAME : Step.DONE;
     }
 
+    /** Back to the first question, as on the first run. */
+    void reset() {
+        step = Step.OWNER_NAME;
+        asked = false;
+        reAsking = false;
+        pendingOwnerName = null;
+    }
+
     boolean isDone() {
         return step == Step.DONE;
     }
@@ -121,6 +129,7 @@ class Onboarding {
         step = Step.DONE;
         // The menu is attached once the names are known, and not before: until then the keyboard
         // would offer a diary that is still asking who it is for.
+        settings.saveMenuShown();
         telegram.sendWithKeyboard(message.getChatId(), messages.get("onboarding.done",
                 settings.ownerName().orElse(""), settings.personName().orElse("")), Menu.keyboard(messages));
     }

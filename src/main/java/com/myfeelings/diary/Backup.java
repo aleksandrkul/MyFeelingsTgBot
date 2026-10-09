@@ -43,8 +43,8 @@ class Backup {
         run();
     }
 
-    /** Takes today's copy, replacing an earlier one from the same day: the last word wins. */
-    void run() {
+    /** Takes today's copy, replacing an earlier one from the same day. Returns whether it succeeded. */
+    boolean run() {
         LocalDate day = DiaryDay.today();
         Path target = fileFor(day);
         Path partial = directory.resolve(target.getFileName() + ".part");
@@ -56,8 +56,10 @@ class Backup {
             Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING);
             log.info("Backup written: {}, {} bytes", target.getFileName(), Files.size(target));
             prune();
+            return true;
         } catch (SQLException | IOException e) {
             log.error("Backup failed", e);
+            return false;
         }
     }
 

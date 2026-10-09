@@ -41,6 +41,11 @@ class DayFlow {
         this.telegram = telegram;
     }
 
+    /** Forgets a closing in progress. */
+    void reset() {
+        closing = null;
+    }
+
     boolean isActive() {
         return closing != null;
     }

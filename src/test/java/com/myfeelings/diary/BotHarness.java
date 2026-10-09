@@ -87,7 +87,16 @@ class BotHarness implements AutoCloseable {
 
     /** A harness past the one-time setup: language and both names already chosen. */
     static BotHarness configured(Path db, Lang lang, String owner, String person) throws Exception {
+        return configured(db, lang, owner, person, true);
+    }
+
+    /** As above; {@code menuShown} false stands for a diary set up before the keyboard existed. */
+    static BotHarness configured(Path db, Lang lang, String owner, String person, boolean menuShown)
+            throws Exception {
         BotHarness harness = new BotHarness(db);
+        if (menuShown) {
+            harness.repository.settings().saveMenuShown();
+        }
         harness.repository.settings().saveLanguage(lang);
         harness.repository.settings().saveOwnerName(owner);
         harness.repository.settings().savePersonName(person);

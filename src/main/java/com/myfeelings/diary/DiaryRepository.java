@@ -253,6 +253,16 @@ public class DiaryRepository implements AutoCloseable {
         }
     }
 
+    /** Erases every entry, card and setting: the diary starts over as on the very first run. */
+    public synchronized void wipe() throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("DELETE FROM entries");
+            statement.execute("DELETE FROM day_cards");
+            statement.execute("DELETE FROM settings");
+        }
+        log.info("Database wiped");
+    }
+
     /**
      * Writes a consistent copy of the whole database to {@code target}, which must not exist.
      *
