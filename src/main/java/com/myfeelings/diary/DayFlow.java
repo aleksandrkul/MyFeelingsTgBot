@@ -2,6 +2,7 @@ package com.myfeelings.diary;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -22,6 +23,8 @@ class DayFlow {
     static final String FEELING_CALLBACK = "feel:";
     static final String TALKED_CALLBACK = "talk:";
     static final String CARD_CALLBACK = "card:";
+
+    private static final int FEELINGS_PER_ROW = 3;
 
     private final DiaryRepository repository;
     private final Settings settings;
@@ -136,15 +139,22 @@ class DayFlow {
         }
     }
 
+    /** Five feelings in rows of three and two: one row of five is squeezed until the labels truncate. */
     private void askFeeling() {
+        List<InlineKeyboardRow> rows = new ArrayList<>();
         InlineKeyboardRow row = new InlineKeyboardRow();
         for (Feeling feeling : Feeling.values()) {
+            if (row.size() == FEELINGS_PER_ROW) {
+                rows.add(row);
+                row = new InlineKeyboardRow();
+            }
             row.add(InlineKeyboardButton.builder()
                     .text(messages.get(feeling.messageKey()))
                     .callbackData(FEELING_CALLBACK + feeling.code())
                     .build());
         }
-        show(messages.get("day.ask.feeling"), List.of(row));
+        rows.add(row);
+        show(messages.get("day.ask.feeling"), rows);
     }
 
     private void askTalked() throws SQLException {

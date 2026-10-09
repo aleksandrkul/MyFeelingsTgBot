@@ -53,6 +53,9 @@ class BotHarness implements AutoCloseable {
     /** Buttons of the most recent message that carried any, as "label=callbackData". */
     final List<String> buttons = Collections.synchronizedList(new ArrayList<>());
 
+    /** How many buttons each row of the same keyboard holds. */
+    final List<Integer> buttonRows = Collections.synchronizedList(new ArrayList<>());
+
     final AtomicInteger callbacksAnswered = new AtomicInteger();
     final AtomicInteger typingActions = new AtomicInteger();
 
@@ -240,6 +243,8 @@ class BotHarness implements AutoCloseable {
 
     private void showButtons(InlineKeyboardMarkup keyboard) {
         buttons.clear();
+        buttonRows.clear();
+        keyboard.getKeyboard().forEach(row -> buttonRows.add(row.size()));
         keyboard.getKeyboard().forEach(row -> row.forEach(button ->
                 buttons.add(button.getText() + "=" + button.getCallbackData())));
     }

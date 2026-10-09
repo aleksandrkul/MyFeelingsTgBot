@@ -42,6 +42,7 @@ class DayCardTest {
             assertEquals(List.of("спокойно=feel:calm", "тревожно=feel:anxious", "тепло=feel:warm",
                             "усталость=feel:tired", "радостно=feel:glad"),
                     h.buttons);
+            assertEquals(List.of(3, 2), h.buttonRows, "three and two, not one cramped row of five");
 
             h.tap("feel:calm");
             assertTrue(h.lastReply().contains("Был сегодня разговор с К.?"), h.lastReply());
