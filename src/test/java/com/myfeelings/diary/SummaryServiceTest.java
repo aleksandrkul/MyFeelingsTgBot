@@ -104,4 +104,44 @@ class SummaryServiceTest {
         assertEquals(455, SummaryService.estimateTokens("я".repeat(1000)),
                 "an English-calibrated estimate would halve this");
     }
+
+    /** An Ollama client that answers with a canned reply, so the service is tested without a model. */
+    private static OllamaClient stub(String text, boolean truncated) {
+        Config config = new Config("", 1L, "http://unused", "qwen2.5:7b", 16384, Path.of("unused.db"));
+        return new OllamaClient(config) {
+            @Override
+            public Reply chat(String systemPrompt, String userPrompt) {
+                return new Reply(text, truncated);
+            }
+        };
+    }
+
+    private SummaryService.Result summarizeWith(OllamaClient ollama) throws Exception {
+        try (DiaryRepository repository = new DiaryRepository(dir.resolve("diary.db"))) {
+            repository.save(DiaryDay.today(), "обсуждали перенос планов");
+            Config config = new Config("", 1L, "http://unused", "qwen2.5:7b", 16384, dir.resolve("x.db"));
+            return new SummaryService(repository, ollama, config, new Messages(Lang.RU))
+                    .summarize(SummaryService.lastDays(1));
+        }
+    }
+
+    @Test
+    @DisplayName("a reply cut off by the context limit says so and names the way out")
+    void truncatedReplyIsReported() throws Exception {
+        String text = summarizeWith(stub("Сводка оборвана на полуслове и", true)).text();
+
+        assertTrue(text.contains("оборвана"), text);
+        assertTrue(text.contains("OLLAMA_NUM_CTX (сейчас 16384)"), text);
+        assertTrue(text.indexOf("OLLAMA_NUM_CTX") < text.indexOf("Что сейчас важно"),
+                "the notice comes before the diary's own question");
+    }
+
+    @Test
+    @DisplayName("a complete reply carries no notice")
+    void completeReplyIsUntouched() throws Exception {
+        String text = summarizeWith(stub("Спокойная неделя.", false)).text();
+
+        assertTrue(text.startsWith("Спокойная неделя."), text);
+        assertTrue(!text.contains("OLLAMA_NUM_CTX"), text);
+    }
 }

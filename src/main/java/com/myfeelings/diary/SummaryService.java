@@ -111,14 +111,18 @@ public class SummaryService {
         }
 
         try {
-            String text = ollama.chat(systemPrompt, userPrompt);
+            OllamaClient.Reply reply = ollama.chat(systemPrompt, userPrompt);
+            String text = reply.text();
             if (text.isBlank()) {
                 throw new SummaryException(messages.get("summary.empty.answer"));
             }
             // The diary's one question is appended rather than asked of the model: it has to be this
             // exact question every time, and a 7B model rephrases whatever it is told to end with.
+            // A reply cut off by the context limit says so: otherwise it reads as a finished thought.
+            String cutOff = reply.truncated()
+                    ? "\n\n" + messages.get("summary.truncated", config.ollamaNumCtx()) : "";
             return new Result(period, entries.size(),
-                    text.strip() + "\n\n" + messages.get("summary.question"));
+                    text.strip() + cutOff + "\n\n" + messages.get("summary.question"));
         } catch (OllamaClient.OllamaException e) {
             // The cause is already phrased for a human; add what it means for the request.
             // The technical detail stays in English: it is the same text that goes to the log.
