@@ -66,17 +66,8 @@ public class DiaryRepository implements AutoCloseable {
                       text TEXT NOT NULL
                     )""");
             statement.execute("CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(entry_date)");
-            statement.execute("""
-                    CREATE TABLE IF NOT EXISTS summaries (
-                      id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      period_from TEXT NOT NULL,
-                      period_to TEXT NOT NULL,
-                      model TEXT NOT NULL,
-                      cache_key TEXT NOT NULL,
-                      text TEXT NOT NULL,
-                      created_at TEXT NOT NULL,
-                      UNIQUE(period_from, period_to, model, cache_key)
-                    )""");
+            // No summaries table: the cache belongs to stage 5 (instruction.md has its schema) and is
+            // created together with the code that uses it.
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS day_cards (
                       entry_date TEXT PRIMARY KEY,
@@ -259,6 +250,19 @@ public class DiaryRepository implements AutoCloseable {
                 ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM entries")) {
             rows.next();
             return rows.getInt(1);
+        }
+    }
+
+    /**
+     * Writes a consistent copy of the whole database to {@code target}, which must not exist.
+     *
+     * <p>{@code VACUUM INTO} rather than copying the file: the database runs in WAL mode while the
+     * bot is up, and a file copy taken mid-write can be corrupt.
+     */
+    public synchronized void backupTo(Path target) throws SQLException {
+        String quoted = target.toAbsolutePath().toString().replace("'", "''");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("VACUUM INTO '" + quoted + "'");
         }
     }
 

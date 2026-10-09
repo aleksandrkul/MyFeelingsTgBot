@@ -90,6 +90,7 @@ a shared constants class would separate them from the only code that cares.
 | `OLLAMA_MODEL` | default `qwen2.5:7b` |
 | `OLLAMA_NUM_CTX` | context window, default `16384` |
 | `DB_PATH` | default `./data/diary.db` |
+| `BACKUP_DIR` | where the daily copies of the database go (`diary-YYYY-MM-DD.db`, last 14 kept); default: `backups/` next to the database |
 | `DIARY_TIMEZONE` | IANA zone for the diary day, e.g. `Europe/Berlin`; default: the system zone |
 
 The token and the database never go into git (`.gitignore`: `data/`, `*.db`, `.env`).

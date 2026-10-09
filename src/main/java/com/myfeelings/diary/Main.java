@@ -77,7 +77,7 @@ public final class Main {
         try {
             String reply = ollama.chat(
                     "You are a test harness. Answer with exactly one word.",
-                    "Reply with the word: ready");
+                    "Reply with the word: ready").text();
             log.info("Model replied: {}", reply.strip());
             log.info("Ollama check passed.");
             return 0;

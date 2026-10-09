@@ -70,9 +70,8 @@ public class Feed {
     private String today(LocalDate date, List<Entry> entries, DayCard card) {
         StringBuilder out = new StringBuilder(messages.get("feed.today",
                 date.format(DateTimeFormatter.ofPattern("d MMMM", messages.locale()))));
-        DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm");
         for (Entry entry : entries) {
-            out.append('\n').append(entry.createdAt().atZone(Config.ZONE).format(time))
+            out.append('\n').append(entry.time())
                     .append("  ").append(entry.text());
         }
         return out.append(marks(card)).toString();

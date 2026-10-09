@@ -119,8 +119,10 @@ class Onboarding {
         pendingOwnerName = null;
         reAsking = false;
         step = Step.DONE;
-        telegram.reply(message, messages.get("onboarding.done",
-                settings.ownerName().orElse(""), settings.personName().orElse("")));
+        // The menu is attached once the names are known, and not before: until then the keyboard
+        // would offer a diary that is still asking who it is for.
+        telegram.sendWithKeyboard(message.getChatId(), messages.get("onboarding.done",
+                settings.ownerName().orElse(""), settings.personName().orElse("")), Menu.keyboard(messages));
     }
 
     /** {@code /who}: shows the two names and asks them again, which is how they are changed. */

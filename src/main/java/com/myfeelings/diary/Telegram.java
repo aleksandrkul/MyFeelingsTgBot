@@ -1,15 +1,19 @@
 package com.myfeelings.diary;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.ActionType;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -39,31 +43,77 @@ public class Telegram {
     }
 
     /**
-     * Sends text, split into chunks Telegram accepts.
+     * Sends text, split into chunks Telegram accepts. Returns the last message sent, or null when
+     * nothing went through.
      *
      * <p>No parse mode is set on purpose: model output contains stray {@code *} and {@code _}, and
      * Telegram rejects the whole request when they do not form valid markup.
      */
-    void send(Long chatId, String text) {
+    Message send(Long chatId, String text) {
+        Message last = null;
         for (String chunk : split(text, MESSAGE_LIMIT)) {
             SendMessage message = SendMessage.builder()
                     .chatId(chatId)
                     .text(chunk)
                     .build();
-            if (!attempt(message, "a reply to chat " + chatId)) {
-                return;
+            last = attempt(message, "a reply to chat " + chatId);
+            if (last == null) {
+                return null;
             }
         }
+        return last;
     }
 
     /** One message carrying a single row of inline buttons. */
-    void sendWithButtons(Long chatId, String text, InlineKeyboardRow row) {
+    Message sendWithButtons(Long chatId, String text, InlineKeyboardRow row) {
+        return sendWithButtons(chatId, text, List.of(row));
+    }
+
+    /** One message carrying inline buttons, laid out in the given rows. Null when it was not sent. */
+    Message sendWithButtons(Long chatId, String text, List<InlineKeyboardRow> rows) {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
-                .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(row).build())
+                .replyMarkup(InlineKeyboardMarkup.builder().keyboard(rows).build())
                 .build();
-        attempt(message, "buttons for chat " + chatId);
+        return attempt(message, "buttons for chat " + chatId);
+    }
+
+    /**
+     * Replaces the text of a message already sent. An empty list of rows removes its buttons: a
+     * request without a keyboard is how Telegram clears one.
+     *
+     * <p>Returns false when the message could not be changed, so the caller can send a new one.
+     */
+    boolean edit(Long chatId, Integer messageId, String text, List<InlineKeyboardRow> rows) {
+        EditMessageText.EditMessageTextBuilder<?, ?> edit = EditMessageText.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .text(text);
+        if (!rows.isEmpty()) {
+            edit.replyMarkup(InlineKeyboardMarkup.builder().keyboard(rows).build());
+        }
+        try {
+            client.execute(edit.build());
+            return true;
+        } catch (TelegramApiException e) {
+            // Asking for the text a message already has is not a failure: nothing needed changing.
+            if (e.getMessage() != null && e.getMessage().contains("message is not modified")) {
+                return true;
+            }
+            log.error("Could not edit message {} in chat {}", messageId, chatId, e);
+            return false;
+        }
+    }
+
+    /** One message that also puts (or replaces) the persistent keyboard under the input field. */
+    Message sendWithKeyboard(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
+        SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .replyMarkup(keyboard)
+                .build();
+        return attempt(message, "a keyboard for chat " + chatId);
     }
 
     /** Telegram keeps a spinner on a button until its callback is answered. */
@@ -81,20 +131,17 @@ public class Telegram {
     }
 
     /**
-     * Sends one request and reports whether it went through.
+     * Sends one request and returns what Telegram answered, or null when it did not go through.
      *
      * <p>A failure is logged rather than thrown: a handler that has already decided what to say
      * cannot do anything useful about the network, and the next update must still be served.
      */
-    private boolean attempt(
-            org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod<?> request,
-            String what) {
+    private <T extends Serializable> T attempt(BotApiMethod<T> request, String what) {
         try {
-            client.execute(request);
-            return true;
+            return client.execute(request);
         } catch (TelegramApiException e) {
             log.error("Could not send {}", what, e);
-            return false;
+            return null;
         }
     }
 

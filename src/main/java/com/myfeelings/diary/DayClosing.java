@@ -14,10 +14,26 @@ public class DayClosing {
     public enum Step { TEXT, FEELING, TALKED, CONFIRM }
 
     private final LocalDate date;
+    private final Long chatId;
     private Step step = Step.TEXT;
+    private Integer messageId;
 
-    public DayClosing(LocalDate date) {
+    public DayClosing(LocalDate date, Long chatId) {
         this.date = date;
+        this.chatId = chatId;
+    }
+
+    public Long chatId() {
+        return chatId;
+    }
+
+    /** The one message the whole conversation is held in; null until it has been sent. */
+    public Integer messageId() {
+        return messageId;
+    }
+
+    public void trackMessage(Integer messageId) {
+        this.messageId = messageId;
     }
 
     public LocalDate date() {

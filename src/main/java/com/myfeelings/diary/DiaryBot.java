@@ -45,6 +45,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
     private final Messages messages;
     private final Feed feed;
     private final Reminder reminder;
+    private final Backup backup;
     private final UndoRequest undo;
     private final Onboarding onboarding;
     private final DayFlow day;
@@ -74,7 +75,8 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         this.summaries = summaries;
         this.messages = messages;
         this.feed = new Feed(repository, messages);
-        this.reminder = new Reminder(repository, this::remind);
+        this.backup = new Backup(repository, config.backupDir());
+        this.reminder = new Reminder(repository, this::remind, backup::runIfDue);
         this.undo = new UndoRequest(repository, messages, this.telegram);
         this.onboarding = new Onboarding(repository, messages, this.telegram);
         this.day = new DayFlow(repository, messages, this.telegram);
@@ -161,7 +163,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         if (text.startsWith("/")) {
             handleCommand(message, text);
         } else if (day.isActive()) {
-            day.handleText(message, text);
+            day.handleText(text);
         } else {
             saveEntry(message, DiaryDay.today(), text);
         }
@@ -185,7 +187,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             case "/new" -> day.start(message.getChatId());
             case "/feed" -> handleFeed(message, argument);
             case "/last" -> handleLast(message);
-            case "/undo" -> undo.handle(message, argument);
+            case "/undo" -> undo.offer(message);
             case "/date" -> handleDate(message, argument);
             case "/summary" -> handleSummary(message, argument);
             case "/cancel" -> telegram.reply(message, messages.get("day.nothing.to.cancel"));
@@ -266,6 +268,9 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         }
         if (text.equalsIgnoreCase(messages.get("trigger.summary"))) {
             return "/summary";
+        }
+        if (text.equalsIgnoreCase(messages.get("trigger.close"))) {
+            return "/new";
         }
         return null;
     }
@@ -396,13 +401,19 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
                 settings.saveLanguage(chosen);
                 messages.use(chosen);
                 languageChosen = true;
-                telegram.send(query.getMessage().getChatId(), messages.get("language.set"));
-                if (!onboarding.isDone()) {
-                    onboarding.ask(query.getMessage().getChatId());
+                Long chatId = query.getMessage().getChatId();
+                if (onboarding.isDone()) {
+                    // The labels are localized, so a new language means a new keyboard.
+                    telegram.sendWithKeyboard(chatId, messages.get("language.set"), Menu.keyboard(messages));
+                } else {
+                    telegram.send(chatId, messages.get("language.set"));
+                    onboarding.ask(chatId);
                 }
             }
         } else if (origin != null && DayFlow.owns(data)) {
             day.handleCallback(origin, data);
+        } else if (origin != null && UndoRequest.owns(data)) {
+            undo.handleCallback(origin, data);
         }
         telegram.answerCallback(query.getId());
     }
@@ -425,6 +436,8 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             modelExecutor.shutdownNow();
         }
         typingScheduler.shutdownNow();
+        // A last copy on the way out, so a stop never loses the day's final entries to the backup.
+        backup.run();
     }
 
 }

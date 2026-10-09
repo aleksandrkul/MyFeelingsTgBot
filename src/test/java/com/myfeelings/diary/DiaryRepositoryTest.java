@@ -108,7 +108,8 @@ class DiaryRepositoryTest {
             while (objects.next()) {
                 names.add(objects.getString(1));
             }
-            assertTrue(names.containsAll(List.of("entries", "day_cards", "settings", "summaries")), names.toString());
+            assertTrue(names.containsAll(List.of("entries", "day_cards", "settings")), names.toString());
+            assertFalse(names.contains("summaries"), "the cache table waits for stage 5: " + names);
             assertTrue(names.contains("idx_entries_date"), "the date index is missing: " + names);
 
             ResultSet journal = statement.executeQuery("PRAGMA journal_mode");

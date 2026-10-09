@@ -2,7 +2,7 @@ package com.myfeelings.diary;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -24,7 +24,7 @@ class DayFlow {
     static final String TALKED_CALLBACK = "talk:";
     static final String CARD_CALLBACK = "card:";
 
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int FEELINGS_PER_ROW = 3;
 
     private final DiaryRepository repository;
     private final Settings settings;
@@ -59,14 +59,15 @@ class DayFlow {
 
     /** Opens the conversation and asks the evening question. */
     void start(Long chatId) throws SQLException {
-        closing = new DayClosing(DiaryDay.today());
-        telegram.send(chatId, messages.get("day.ask.text", settings.ownerName().orElse("")));
+        closing = new DayClosing(DiaryDay.today(), chatId);
+        show(messages.get("day.ask.text", settings.ownerName().orElse("")), List.of());
     }
 
     /** Only /cancel and /help make sense mid-closing; the rest would lose the thread. */
     void handleCommand(Message message, String command) {
         switch (command) {
             case "/cancel" -> {
+                // A new message, not an edit: the owner typed /cancel, so the answer belongs at the bottom.
                 closing = null;
                 telegram.reply(message, messages.get("day.cancelled"));
             }
@@ -81,17 +82,17 @@ class DayFlow {
      * then does the conversation move on. Text sent at a later step joins the day too, and the
      * question is simply asked again instead of the text being taken for a mistyped button.
      */
-    void handleText(Message message, String text) throws SQLException {
+    void handleText(String text) throws SQLException {
         repository.save(closing.date(), text);
         if (closing.step() == DayClosing.Step.TEXT) {
             closing.moveTo(DayClosing.Step.FEELING);
-            askFeeling(message);
+            askFeeling();
             return;
         }
         switch (closing.step()) {
-            case TALKED -> askTalked(message);
-            case CONFIRM -> showCard(message);
-            default -> askFeeling(message);
+            case TALKED -> askTalked();
+            case CONFIRM -> showCard();
+            default -> askFeeling();
         }
     }
 
@@ -120,53 +121,76 @@ class DayFlow {
             }
             repository.setFeeling(closing.date(), feeling);
             closing.moveTo(DayClosing.Step.TALKED);
-            askTalked(origin);
+            askTalked();
         } else if (data.startsWith(TALKED_CALLBACK)) {
             repository.setTalked(closing.date(), data.endsWith("yes"));
             closing.moveTo(DayClosing.Step.CONFIRM);
-            showCard(origin);
+            showCard();
         } else if (data.endsWith("ok")) {
             LocalDate date = closing.date();
-            closing = null;
             repository.confirmCard(date);
-            telegram.reply(origin, messages.get("day.confirmed", date));
+            // The card itself stays on screen and only loses its buttons; the confirmation is a line under it.
+            show(renderCard(date) + "\n\n" + messages.get("day.confirmed", date), List.of());
+            closing = null;
         } else {
             // Keep writing: the card stays a draft and /new picks it up again later.
+            show(messages.get("day.editing"), List.of());
             closing = null;
-            telegram.reply(origin, messages.get("day.editing"));
         }
     }
 
-    private void askFeeling(Message message) {
+    /** Five feelings in rows of three and two: one row of five is squeezed until the labels truncate. */
+    private void askFeeling() {
+        List<InlineKeyboardRow> rows = new ArrayList<>();
         InlineKeyboardRow row = new InlineKeyboardRow();
         for (Feeling feeling : Feeling.values()) {
+            if (row.size() == FEELINGS_PER_ROW) {
+                rows.add(row);
+                row = new InlineKeyboardRow();
+            }
             row.add(InlineKeyboardButton.builder()
                     .text(messages.get(feeling.messageKey()))
                     .callbackData(FEELING_CALLBACK + feeling.code())
                     .build());
         }
-        telegram.sendWithButtons(message.getChatId(), messages.get("day.ask.feeling"), row);
+        rows.add(row);
+        show(messages.get("day.ask.feeling"), rows);
     }
 
-    private void askTalked(Message message) throws SQLException {
+    private void askTalked() throws SQLException {
         InlineKeyboardRow row = new InlineKeyboardRow();
         row.add(InlineKeyboardButton.builder()
                 .text(messages.get("button.yes")).callbackData(TALKED_CALLBACK + "yes").build());
         row.add(InlineKeyboardButton.builder()
                 .text(messages.get("button.no")).callbackData(TALKED_CALLBACK + "no").build());
-        telegram.sendWithButtons(message.getChatId(),
-                messages.get("day.ask.talked", settings.personName().orElse("")), row);
+        show(messages.get("day.ask.talked", settings.personName().orElse("")), List.of(row));
     }
 
     /** Shows the assembled card, with a way to confirm it or to go back to writing. */
-    private void showCard(Message message) throws SQLException {
+    private void showCard() throws SQLException {
         InlineKeyboardRow row = new InlineKeyboardRow();
         row.add(InlineKeyboardButton.builder()
                 .text(messages.get("button.save")).callbackData(CARD_CALLBACK + "ok").build());
         row.add(InlineKeyboardButton.builder()
                 .text(messages.get("button.edit")).callbackData(CARD_CALLBACK + "edit").build());
-        telegram.sendWithButtons(message.getChatId(),
-                renderCard(closing.date()) + "\n\n" + messages.get("day.card.ask"), row);
+        show(renderCard(closing.date()) + "\n\n" + messages.get("day.card.ask"), List.of(row));
+    }
+
+    /**
+     * Puts the conversation's current state on screen: the one message it lives in is edited, so the
+     * chat does not fill up with the bot's own questions. A message that cannot be edited — it was
+     * never sent, or the text is too long for Telegram — is replaced by a new one.
+     */
+    private void show(String text, List<InlineKeyboardRow> rows) {
+        Integer messageId = closing.messageId();
+        if (messageId != null && text.length() <= Telegram.MESSAGE_LIMIT
+                && telegram.edit(closing.chatId(), messageId, text, rows)) {
+            return;
+        }
+        Message sent = rows.isEmpty()
+                ? telegram.send(closing.chatId(), text)
+                : telegram.sendWithButtons(closing.chatId(), text, rows);
+        closing.trackMessage(sent == null ? null : sent.getMessageId());
     }
 
     /** The card as the owner sees it: the day's text in the order written, then the two marks. */
@@ -179,7 +203,7 @@ class DayFlow {
             out.append(messages.get("day.card.no.text")).append('\n');
         } else {
             for (Entry entry : entries) {
-                out.append(entry.createdAt().atZone(Config.ZONE).format(TIME))
+                out.append(entry.time())
                         .append("  ").append(entry.text()).append('\n');
             }
         }

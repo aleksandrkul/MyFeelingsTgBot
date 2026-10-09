@@ -87,6 +87,16 @@ public record Config(
         }
     }
 
+    /**
+     * Where the daily database copies go: {@code BACKUP_DIR} when set (point it at another disk),
+     * otherwise a {@code backups} folder next to the database.
+     */
+    public Path backupDir() {
+        String value = System.getenv("BACKUP_DIR");
+        return value == null || value.isBlank() ? dbPath.toAbsolutePath().resolveSibling("backups")
+                : Path.of(value.trim());
+    }
+
     /** Deliberately leaves out the token: this value is written to the log on startup. */
     @Override
     public String toString() {

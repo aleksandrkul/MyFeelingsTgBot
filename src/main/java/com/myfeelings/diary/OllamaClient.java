@@ -43,6 +43,10 @@ public class OllamaClient {
         this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
     }
 
+    /** The assistant's reply, and whether the model stopped on the context limit before finishing. */
+    public record Reply(String text, boolean truncated) {
+    }
+
     /**
      * Sends one non-streaming chat request and returns the assistant's reply.
      *
@@ -50,7 +54,7 @@ public class OllamaClient {
      * silently ignores them and falls back to the model's default context window, which truncates
      * long input without any error.
      */
-    public String chat(String systemPrompt, String userPrompt) throws OllamaException {
+    public Reply chat(String systemPrompt, String userPrompt) throws OllamaException {
         ObjectNode body = json.createObjectNode();
         body.put("model", config.ollamaModel());
         body.put("stream", false);
@@ -77,11 +81,12 @@ public class OllamaClient {
         String reply = content.asText();
         long seconds = Duration.ofNanos(System.nanoTime() - startedAt).toSeconds();
         log.info("Ollama replied in {}s, {} chars", seconds, reply.length());
-        if (response.path("done_reason").asText("").equals("length")) {
+        boolean truncated = response.path("done_reason").asText("").equals("length");
+        if (truncated) {
             log.warn("Ollama stopped on the context limit; the reply is cut off. "
                     + "Raise OLLAMA_NUM_CTX or shorten the period.");
         }
-        return reply;
+        return new Reply(reply, truncated);
     }
 
     /** Model names known to the local Ollama instance, e.g. {@code qwen2.5:7b}. */
