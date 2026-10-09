@@ -46,18 +46,34 @@ public class Reminder implements AutoCloseable {
     private final DiaryRepository repository;
     private final Settings settings;
     private final LongConsumer ask;
+    private final Runnable everyTick;
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "reminder"));
 
     public Reminder(DiaryRepository repository, LongConsumer ask) {
+        this(repository, ask, () -> { });
+    }
+
+    /**
+     * @param everyTick also run on each tick of the schedule, after the reminder's own check: the
+     *     daily backup rides the thread that is already there rather than starting a second one
+     */
+    public Reminder(DiaryRepository repository, LongConsumer ask, Runnable everyTick) {
         this.repository = repository;
         this.settings = repository.settings();
         this.ask = ask;
+        this.everyTick = everyTick;
     }
 
     public void start() {
-        scheduler.scheduleAtFixedRate(() -> tick(LocalDateTime.now(Config.ZONE)),
-                0, TICK_SECONDS, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(() -> {
+            tick(LocalDateTime.now(Config.ZONE));
+            try {
+                everyTick.run();
+            } catch (RuntimeException e) {
+                log.error("A scheduled task failed", e);
+            }
+        }, 0, TICK_SECONDS, TimeUnit.SECONDS);
         log.info("Reminder watching, every {}s", TICK_SECONDS);
     }
 

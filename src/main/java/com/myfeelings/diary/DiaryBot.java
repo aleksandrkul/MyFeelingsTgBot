@@ -45,6 +45,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
     private final Messages messages;
     private final Feed feed;
     private final Reminder reminder;
+    private final Backup backup;
     private final UndoRequest undo;
     private final Onboarding onboarding;
     private final DayFlow day;
@@ -74,7 +75,8 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         this.summaries = summaries;
         this.messages = messages;
         this.feed = new Feed(repository, messages);
-        this.reminder = new Reminder(repository, this::remind);
+        this.backup = new Backup(repository, config.backupDir());
+        this.reminder = new Reminder(repository, this::remind, backup::runIfDue);
         this.undo = new UndoRequest(repository, messages, this.telegram);
         this.onboarding = new Onboarding(repository, messages, this.telegram);
         this.day = new DayFlow(repository, messages, this.telegram);
@@ -434,6 +436,8 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             modelExecutor.shutdownNow();
         }
         typingScheduler.shutdownNow();
+        // A last copy on the way out, so a stop never loses the day's final entries to the backup.
+        backup.run();
     }
 
 }

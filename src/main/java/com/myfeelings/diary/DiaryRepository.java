@@ -253,6 +253,19 @@ public class DiaryRepository implements AutoCloseable {
         }
     }
 
+    /**
+     * Writes a consistent copy of the whole database to {@code target}, which must not exist.
+     *
+     * <p>{@code VACUUM INTO} rather than copying the file: the database runs in WAL mode while the
+     * bot is up, and a file copy taken mid-write can be corrupt.
+     */
+    public synchronized void backupTo(Path target) throws SQLException {
+        String quoted = target.toAbsolutePath().toString().replace("'", "''");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("VACUUM INTO '" + quoted + "'");
+        }
+    }
+
     private static Entry read(ResultSet rows) throws SQLException {
         return new Entry(
                 rows.getLong("id"),
