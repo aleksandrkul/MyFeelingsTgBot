@@ -34,10 +34,20 @@ Making the two fields `volatile` would paper over it without making the invarian
 cut-off text to the owner as if it were complete. The owner reads a summary that ends mid-thought
 and has no way to know why. Return that flag with the reply and add a line to the message.
 
-### 1.3 ~~No README~~ — **done**
-`README.md` and `.env.example` cover building, the environment variables, the token and owner id,
-and the tests. Restoring from a backup is the one thing still missing, and it cannot be written
-until 1.1 exists.
+### 1.4 No autostart (stage 6) — **M**
+The bot only runs while the terminal is open, so the evening reminder — the thing that makes the
+diary a habit — silently stops whenever the machine restarts. On macOS this is a `launchd` plist
+with `KeepAlive`; the spec also mentions Windows and Linux equivalents. Needs a log file, because
+stdout goes nowhere under a service.
+
+### 1.5 No README (stage 6) — **S**
+How to build, which environment variables exist, how to get the bot token and the owner id, how to
+restore from a backup. `instruction.md` is a design document, not instructions for running the thing.
+
+### 1.6 Verify that logs never contain entry text (stage 6) — **S**
+The rule is stated and followed by hand. It needs a test: run a message through the bot with a
+capturing logback appender and assert the text does not appear in any event. Otherwise one careless
+`log.info("saving {}", text)` in a year breaks a privacy promise with nothing to catch it.
 
 ---
 
@@ -84,58 +94,7 @@ or prefer a private chat.
 
 ## 3. User interaction
 
-The first three were asked for directly and share one cause: the chat fills up with the bot's own
-messages until the diary is hard to read back.
-
-### 3.1 The summary needs a button, not a command — **S**
-Typing `/summary` or `итог` to get the thing the diary exists for is the wrong amount of friction.
-A persistent reply keyboard — `ReplyKeyboardMarkup` with `isPersistent` and `resizeKeyboard`, two or
-three buttons: *Итог*, *Лента*, *Закрыть день* — sits under the input field and is always one tap
-away.
-
-Almost free to build: a reply-keyboard button sends its label as an ordinary text message, and the
-exact-match trigger words from stages 10 and 11 already turn "итог" and "лента" into their commands.
-The keyboard has to be attached once, after onboarding, and re-attached when the language changes,
-because the labels are localized.
-
-The tradeoff worth deciding before building: a persistent keyboard takes vertical space and puts the
-typing keyboard one tap further away, in a bot whose main action is typing. `inputFieldPlaceholder`
-("напиши, что помнишь") softens that. If it proves to be in the way, the fallback is an inline
-*Итог* button attached to the day's first acknowledgement, which costs no space but is only there
-while that message is on screen.
-
-### 3.2 A button to clear the chat — **M**
-The chat grows without bound and becomes a wall of acknowledgements. The Bot API allows more than
-expected here: in a private chat a bot may delete **both its own and the owner's** messages, in
-batches of up to 100 (`deleteMessages`), with one hard limit — **nothing older than 48 hours**.
-
-So the button can honestly offer "clear the last two days" and should say exactly that, pointing at
-Telegram's own *Clear history* for anything older. To do it the bot has to remember message ids:
-incoming ones arrive with the update, outgoing ones come back from `execute(SendMessage)`, whose
-result `Telegram.attempt` currently discards.
-
-On a real diary this would wait for backups: clearing the chat deletes the owner's typed text from
-Telegram and leaves one unbacked-up SQLite file as the only copy. On a training project there is
-nothing precious to lose, so it is unblocked — worth remembering if that ever changes.
-
-### 3.3 Stop announcing "Сохранил карточку за …" — **S**
-Tapping *Сохранить* is its own feedback; the confirmation adds a line to a chat that is already too
-long. But removing it outright leaves the tap with no visible result at all.
-
-The better move is the one Telegram is built for: **edit the card message in place** instead of
-sending a new one. `EditMessageText` drops the buttons and leaves the finished card where it was, so
-the save is visible without costing a message.
-
-The same applies to the whole closing conversation, which currently sends five separate messages —
-the question, the feeling buttons, the conversation buttons, the card, the confirmation. Edited in
-place it is **one** message that changes as the owner answers. That is the single biggest reduction
-in chat noise available, and it makes 3.2 a convenience rather than a necessity.
-
-It needs the message id of what was sent, so it depends on the same change as 3.2: `Telegram` must
-return the `Message` that `execute` already gives back, and the test harness' recording client must
-return one instead of `null`.
-
-### 3.4 Register the command menu with Telegram — **S**
+### 3.1 Register the command menu with Telegram — **S**
 `setMyCommands` is never called, so the commands only exist in `/help`. Registering them gives the
 owner the native command list and descriptions, in the chosen language, with no typing. Highest
 ratio of effect to work in this list.

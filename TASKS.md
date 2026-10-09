@@ -8,13 +8,30 @@ number given.
 user-facing string added to only one of the two `.properties` files.
 
 ## What can run at once
+## Running these in parallel
 
+Wave A tasks touch disjoint files and can all run at once. Wave B tasks all touch
+`Telegram.java` / `DayFlow.java` / `DiaryBot.java` and must run **one at a time, in the order
+given** — B1 changes a signature the rest depend on. Wave C is independent of both.
 With a codebase this small almost everything passes through `DiaryBot`, `Telegram` or `DayFlow`, so
 there is less parallelism here than the number of tasks suggests. Three are genuinely isolated and
 can go out together; the rest is a queue.
 
 **Parallel:** P1 (`OllamaClient`, `SummaryService`, both `.properties`), P2 (`DiaryRepository`
 only), P3 (a new test fixture only).
+| | | touches |
+|---|---|---|
+| **A1** | SQLite backup | new `Backup.java`, `Reminder` scheduler, `DiaryBot.close` |
+| **A2** | log hygiene test | new test only |
+| **A3** | truncated summary | `OllamaClient`, `SummaryService`, both `.properties` |
+| **A4** | one time formatter | `Entry`, `DayFlow`, `Feed` |
+| **A5** | unused `summaries` table | `DiaryRepository` |
+| **B1** | edit messages in place | `Telegram`, `DayFlow`, `BotHarness` |
+| **B2** | button rows | `Telegram`, `DayFlow` |
+| **B3** | persistent keyboard | `Telegram`, `DiaryBot`, both `.properties` |
+| **B4** | `/undo` button | `Telegram`, `UndoRequest`, `DiaryBot` |
+| **B5** | clear the chat | `Telegram`, `DiaryBot`, `DiaryRepository`, both `.properties` |
+| **C1** | evaluation set | new fixture + `SummaryWithModelTest` |
 
 **Queue, in order:** Q1 fixes a real bug and simplifies the threading everything else sits on. Q2
 changes a signature the rest of the queue depends on. Q3 and Q4 are the two you asked for. Q7 is a
@@ -22,9 +39,7 @@ three-line cleanup that can be slipped in anywhere.
 
 ---
 
-## Parallel
 
-### P1 — Tell the owner when a summary was cut off (backlog 1.2, S)
 
 ```
 OllamaClient logs a warning when the model stops on the context limit (done_reason == "length")
@@ -40,7 +55,6 @@ Cover it with a test that does not need Ollama: the flag's effect on the message
 test SummaryService against a stub rather than the real model.
 ```
 
-### P2 — Decide what to do about the unused `summaries` table (backlog 4.3, S)
 
 ```
 DiaryRepository creates a `summaries` table that nothing ever reads or writes. It belongs to
@@ -73,29 +87,7 @@ visible. Do not tune the prompt in this task.
 
 ---
 
-## Queue
 
-### Q1 — Fix the cross-thread race (backlog 1.1, S)
-
-```
-The bot has a real data race. DiaryBot.remind() runs on the reminder's own thread and calls
-day.isActive() and day.start(), while the polling thread calls day.handleText() on the same object.
-DayFlow.closing is a plain field with no synchronization, so the reminder can read a stale value and
-ask the evening question in the middle of a closing that is already open — the exact case remind()
-is trying to avoid. Messages.lang has the same shape: written by the polling thread when the owner
-taps a language, read by the model thread while a summary is being built.
-
-Fix it by making the invariant true rather than papering over it: all conversation state should be
-touched by one thread only. Route the reminder's wake-up through the same single-threaded executor
-that handles updates instead of calling into the bot from the scheduler thread. Making the two
-fields volatile would hide the symptom and leave the design wrong.
-
-Keep Reminder.decide a pure function taking the moment as a parameter — that is what makes the
-schedule testable — and keep BotHarness.fireReminder working, since ReminderTest drives it. Add a
-test that a reminder arriving while a closing is open does not start a second one.
-```
-
-### Q2 — Edit one message in place instead of sending five (backlog 3.3, M)
 
 ```
 Closing a day currently sends five separate messages: the question, the feeling buttons, the
@@ -116,7 +108,6 @@ this change the interesting thing is the latest state of the edited message. Upd
 the new shape rather than deleting them.
 ```
 
-### Q3 — A persistent summary button (backlog 3.1, S)
 
 ```
 Getting a summary means typing /summary or "итог". The thing the diary exists for should be one tap
@@ -135,27 +126,6 @@ Test that the keyboard is attached after onboarding, that it is re-attached on a
 and that tapping each label reaches the same handler as the command.
 ```
 
-### Q4 — A button that clears the chat (backlog 3.2, M)
-
-```
-The chat grows without bound. The Bot API allows a bot to delete both its own and the owner's
-messages in a private chat, in batches of up to 100 via deleteMessages, with one hard limit:
-nothing older than 48 hours.
-
-Add a command and a button that clears what can be cleared and says exactly that — "за последние
-двое суток" — and points at Telegram's own Clear history for anything older. Ask for confirmation
-with an inline button before deleting.
-
-To do it the bot must remember message ids: incoming ones arrive with the update, outgoing ones come
-back from the send methods (B1 made them return the Message). Store them with their timestamps,
-prune anything past 48 hours, and delete in batches of 100.
-
-On a real diary this would wait for backups, since it deletes the owner's typed text from Telegram
-and leaves one unbacked-up SQLite file as the only copy. This is a training project, so go ahead —
-but note it in the commit message, because the constraint returns the day it stops being one.
-```
-
-### Q5 — Confirm `/undo` with a button (backlog 3.5, S)
 
 ```
 Every confirmation in the bot is an inline button except /undo, which asks the owner to type
@@ -171,34 +141,19 @@ commit message. Update CommandsTest, which currently drives the typed form, and 
 that asking does not delete.
 ```
 
-### Q6 — Feeling buttons on more than one row (backlog 3.6, S)
 
 ```
-DayFlow.askFeeling puts all five feeling buttons in a single InlineKeyboardRow. On a phone Telegram
-shrinks the labels until they truncate.
 
-Let Telegram.sendWithButtons take several rows instead of one, and lay the five feelings out as
-three plus two. Update the other callers (the language picker, the conversation mark, the card
-buttons) to pass a single row through the new signature.
-
-The tests assert on a flat list of buttons, which still works; check that FeedTest, DayCardTest and
-LanguageTest stay green without being weakened.
-```
-
-### Q7 — One time formatter instead of three (backlog 3.11, S)
 
 ```
-DateTimeFormatter.ofPattern("HH:mm") is defined three times: Entry.java, DayFlow.java and inside
-Feed.today(). Same format, three copies.
+
+
 
 Put it in one place and use it from all three. Pure cleanup: ./mvnw test must stay green with no
 test changed.
 ```
+Prompt changes are currently judged by reading one answer and forming an impression. Stage 4 of
+instruction.md needs something comparable.
 
----
 
-## Not queued
 
-**Backups, autostart and the log-hygiene test** live in section 7 of `BACKLOG.md`. They protect data
-and uptime, and the data here is disposable, so they buy nothing yet. Start with backups if this ever
-turns into a diary you actually keep.
