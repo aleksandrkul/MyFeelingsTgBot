@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %logger{20} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!--
+    Tests are read through their own output, so the application's INFO chatter is noise here.
+    A warning or an error still gets through, which is the point.
+  -->
+  <root level="WARN">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+</configuration>

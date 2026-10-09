@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{20} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!--
+    Keep the Telegram library at INFO. At DEBUG it prints every update as raw JSON, which means
+    diary entry text ends up in the log, and the log is not meant to hold entry text.
+  -->
+  <logger name="org.telegram" level="INFO"/>
+  <logger name="okhttp3" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+</configuration>
