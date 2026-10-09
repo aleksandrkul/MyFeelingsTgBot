@@ -72,7 +72,7 @@ class LogHygieneTest {
             h.say("/last");
             h.say("лента");
             h.say("/undo");
-            h.say("/undo yes");
+            h.tap("undo:yes");
             // The model may be down on this machine; either answer ends the request.
             h.say("/summary");
             h.awaitReply(reply -> reply.contains("ummary") || reply.contains("водк"), Duration.ofSeconds(30));

@@ -185,7 +185,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             case "/new" -> day.start(message.getChatId());
             case "/feed" -> handleFeed(message, argument);
             case "/last" -> handleLast(message);
-            case "/undo" -> undo.handle(message, argument);
+            case "/undo" -> undo.offer(message);
             case "/date" -> handleDate(message, argument);
             case "/summary" -> handleSummary(message, argument);
             case "/cancel" -> telegram.reply(message, messages.get("day.nothing.to.cancel"));
@@ -410,6 +410,8 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             }
         } else if (origin != null && DayFlow.owns(data)) {
             day.handleCallback(origin, data);
+        } else if (origin != null && UndoRequest.owns(data)) {
+            undo.handleCallback(origin, data);
         }
         telegram.answerCallback(query.getId());
     }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -66,25 +67,60 @@ class CommandsTest {
     }
 
     @Test
-    @DisplayName("/undo asks before deleting and only then deletes")
+    @DisplayName("/undo asks with buttons before deleting and only then deletes")
     void undo() throws Exception {
         try (BotHarness h = harness()) {
             h.say("/undo");
             assertTrue(h.lastReply().contains("The diary is empty"), h.lastReply());
 
             h.say("an entry to remove");
-            h.say("/undo yes");
-            assertTrue(h.lastReply().contains("Nothing to confirm"), "a bare confirmation must be refused");
-            assertEquals(1, h.repository().count());
-
             h.say("/undo");
             assertTrue(h.lastReply().contains("Delete this entry?"), h.lastReply());
-            assertTrue(h.lastReply().contains("within 2 minutes"), h.lastReply());
+            assertTrue(h.lastReply().contains("2 minutes"), h.lastReply());
+            assertEquals(List.of("Delete=undo:yes", "Cancel=undo:no"), h.buttons);
             assertEquals(1, h.repository().count(), "asking must not delete");
 
-            h.say("/undo yes");
-            assertTrue(h.lastReply().contains("Deleted"), h.lastReply());
+            h.tap("undo:yes");
+            assertTrue(h.lastReply().equals("Deleted."), "the offer becomes the outcome: " + h.lastReply());
+            assertTrue(h.buttons.isEmpty(), "the buttons must be gone: " + h.buttons);
             assertEquals(0, h.repository().count());
+        }
+    }
+
+    @Test
+    @DisplayName("Cancel leaves the entry, and a second tap on the same offer does nothing")
+    void undoCancelled() throws Exception {
+        try (BotHarness h = harness()) {
+            h.say("keep me");
+            h.say("/undo");
+            h.tap("undo:no");
+            assertTrue(h.lastReply().contains("Left the entry"), h.lastReply());
+            assertEquals(1, h.repository().count());
+
+            h.tap("undo:yes");
+            assertTrue(h.lastReply().contains("no longer open"), h.lastReply());
+            assertEquals(1, h.repository().count(), "an old button must not delete");
+        }
+    }
+
+    @Test
+    @DisplayName("the offer deletes the entry it showed, and a restart cancels it")
+    void undoByIdAndRestart() throws Exception {
+        try (BotHarness h = harness()) {
+            h.say("first");
+            h.say("/undo");
+            h.say("written after the offer");
+            h.tap("undo:yes");
+            assertEquals(List.of("written after the offer"),
+                    h.repository().findBetween(DiaryDay.today(), DiaryDay.today()).stream()
+                            .map(Entry::text).toList(),
+                    "the offered entry goes, not the newest one");
+
+            h.say("/undo");
+            h.reopen();
+            h.tap("undo:yes");
+            assertTrue(h.lastReply().contains("no longer open"), h.lastReply());
+            assertEquals(1, h.repository().count(), "a restart must cancel the offer");
         }
     }
 

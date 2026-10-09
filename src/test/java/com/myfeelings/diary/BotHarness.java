@@ -49,6 +49,9 @@ class BotHarness implements AutoCloseable {
     /** Every edit the bot made, oldest first, as "messageId: new text". */
     final List<String> edits = Collections.synchronizedList(new ArrayList<>());
 
+    /** The latest message that carried inline buttons: the one a tap in a real chat would come from. */
+    private volatile int lastButtonMessageId = 2;
+
     private final AtomicInteger nextMessageId = new AtomicInteger(100);
 
     /** Buttons of the most recent message that carried any, as "label=callbackData". */
@@ -150,7 +153,7 @@ class BotHarness implements AutoCloseable {
         query.setId("callback");
         query.setData(callbackData);
         query.setFrom(User.builder().id(userId).isBot(false).firstName("Test").build());
-        query.setMessage(Message.builder().messageId(2).date(0)
+        query.setMessage(Message.builder().messageId(lastButtonMessageId).date(0)
                 .chat(Chat.builder().id(userId == OWNER ? CHAT : userId).type("private").build()).build());
         Update update = new Update();
         update.setCallbackQuery(query);
@@ -222,6 +225,7 @@ class BotHarness implements AutoCloseable {
             replyIds.add(id);
             if (send.getReplyMarkup() instanceof InlineKeyboardMarkup inline) {
                 showButtons(inline);
+                lastButtonMessageId = id;
             } else if (send.getReplyMarkup() instanceof ReplyKeyboardMarkup menu) {
                 keyboard.clear();
                 menu.getKeyboard().forEach(row -> row.forEach(button -> keyboard.add(button.getText())));
