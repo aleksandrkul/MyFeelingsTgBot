@@ -90,7 +90,7 @@ public class Telegram {
                 .text(chunks.get(chunks.size() - 1))
                 .replyMarkup(InlineKeyboardMarkup.builder().keyboard(rows).build())
                 .build();
-        return attempt(message, "buttons for chat " + chatId);
+        return attempt(message, "buttons for chat " + chatId + " (" + chunks.get(chunks.size() - 1).length() + " chars)");
     }
 
     /**
