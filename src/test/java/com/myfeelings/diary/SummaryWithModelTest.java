@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,25 +36,10 @@ class SummaryWithModelTest {
                 "no Ollama with qwen2.5 at " + BotHarness.ollamaUrl() + ": skipping the model tests");
     }
 
-    /** Seven days of synthetic cards. No real personal data. */
+    /** The evaluation set: ten synthetic days with their cards. No real personal data. */
     private BotHarness withWeek() throws Exception {
-        BotHarness h = BotHarness.configured(dir.resolve("diary.db"), Lang.RU, "Миша", "Оля");
-        String[][] week = {
-            {"6", "Договорились созвониться в среду и обсудить отпуск. Тревожно, когда не знаю, чего ждать.", "anxious", "0"},
-            {"5", "Созвон перенесли. Разозлился, но сказал, что всё нормально.", "anxious", "0"},
-            {"4", "Поговорили час. Решили, что я говорю прямо, без паузы на три дня.", "warm", "1"},
-            {"3", "Сказал прямо про перенесённый созвон. Неловко, но легче.", "calm", "1"},
-            {"2", "Снова отложили разговор. На этот раз сказал сразу, что задевает.", "tired", "1"},
-            {"1", "Спокойный день. Меньше прокручиваю диалоги в голове.", "calm", "0"},
-            {"0", "Обсудили отпуск. Договорённость держится: говорю сразу.", "glad", "1"},
-        };
-        for (String[] day : week) {
-            LocalDate date = DiaryDay.today().minusDays(Integer.parseInt(day[0]));
-            h.repository().save(date, day[1]);
-            h.repository().setFeeling(date, Feeling.byCode(day[2]).orElseThrow());
-            h.repository().setTalked(date, day[3].equals("1"));
-            h.repository().confirmCard(date);
-        }
+        BotHarness h = BotHarness.configured(dir.resolve("diary.db"), Lang.RU, EvalSet.OWNER, EvalSet.PERSON);
+        EvalSet.seed(h.repository());
         return h;
     }
 
