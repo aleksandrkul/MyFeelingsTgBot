@@ -181,4 +181,26 @@ class DayCardTest {
             assertTrue(h.lastReply().contains("Эта карточка больше не открыта"), h.lastReply());
         }
     }
+
+    @Test
+    @DisplayName("a day too long for one message still gets its card and its buttons")
+    void longDayCard() throws Exception {
+        try (BotHarness h = harness()) {
+            for (int i = 0; i < 12; i++) {
+                h.say("длинная запись номер " + i + " " + "слово ".repeat(100));
+            }
+            h.say("/new");
+            h.say("последняя мысль");
+            h.tap("feel:calm");
+            h.tap("talk:yes");
+
+            assertTrue(h.replies.stream().allMatch(r -> r.length() <= Telegram.MESSAGE_LIMIT));
+            assertTrue(h.lastReply().endsWith("Сохранить так?"), h.lastReply());
+            assertEquals(List.of("Сохранить=card:ok", "Дописать=card:edit"), h.buttons);
+
+            h.tap("card:ok");
+            assertTrue(h.repository().card(DiaryDay.today()).isConfirmed());
+            assertTrue(h.replies.stream().allMatch(r -> r.length() <= Telegram.MESSAGE_LIMIT));
+        }
+    }
 }

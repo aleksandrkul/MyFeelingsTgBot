@@ -47,6 +47,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
     private final Reminder reminder;
     private final Backup backup;
     private final UndoRequest undo;
+    private final ResetRequest reset;
     private final Onboarding onboarding;
     private final DayFlow day;
 
@@ -78,6 +79,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
         this.backup = new Backup(repository, config.backupDir());
         this.reminder = new Reminder(repository, this::remind, backup::runIfDue);
         this.undo = new UndoRequest(repository, messages, this.telegram);
+        this.reset = new ResetRequest(repository, messages, this.telegram, backup);
         this.onboarding = new Onboarding(repository, messages, this.telegram);
         this.day = new DayFlow(repository, messages, this.telegram);
 
@@ -153,6 +155,12 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             return;
         }
 
+        // Diaries created before the keyboard existed get it once, on the next message.
+        if (!settings.menuShown()) {
+            settings.saveMenuShown();
+            telegram.sendWithKeyboard(message.getChatId(), messages.get("menu.attached"), Menu.keyboard(messages));
+        }
+
         // A bare word the owner uses as a command — "лента" — is rewritten to its slash form, so it
         // goes through exactly the same path, including being held back while a day is being closed.
         String asCommand = asCommand(text);
@@ -188,6 +196,7 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             case "/feed" -> handleFeed(message, argument);
             case "/last" -> handleLast(message);
             case "/undo" -> undo.offer(message);
+            case "/reset" -> reset.offer(message);
             case "/date" -> handleDate(message, argument);
             case "/summary" -> handleSummary(message, argument);
             case "/cancel" -> telegram.reply(message, messages.get("day.nothing.to.cancel"));
@@ -414,6 +423,14 @@ public class DiaryBot implements LongPollingSingleThreadUpdateConsumer, AutoClos
             day.handleCallback(origin, data);
         } else if (origin != null && UndoRequest.owns(data)) {
             undo.handleCallback(origin, data);
+        } else if (origin != null && ResetRequest.owns(data)) {
+            if (reset.handleCallback(origin, data)) {
+                // Everything is gone, including the language and the names: begin as on the first run.
+                languageChosen = false;
+                onboarding.reset();
+                day.reset();
+                askForLanguage(origin);
+            }
         }
         telegram.answerCallback(query.getId());
     }

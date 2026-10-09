@@ -41,6 +41,11 @@ class DayFlow {
         this.telegram = telegram;
     }
 
+    /** Forgets a closing in progress. */
+    void reset() {
+        closing = null;
+    }
+
     boolean isActive() {
         return closing != null;
     }
@@ -179,7 +184,7 @@ class DayFlow {
     /**
      * Puts the conversation's current state on screen: the one message it lives in is edited, so the
      * chat does not fill up with the bot's own questions. A message that cannot be edited — it was
-     * never sent, or the text is too long for Telegram — is replaced by a new one.
+     * never sent, or the text is too long for Telegram — is replaced by a new one, split if need be.
      */
     private void show(String text, List<InlineKeyboardRow> rows) {
         Integer messageId = closing.messageId();

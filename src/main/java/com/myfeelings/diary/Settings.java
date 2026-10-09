@@ -21,6 +21,7 @@ public class Settings {
     private static final String REMIND_AT = "remind_at";
     private static final String REMINDED_ON = "reminded_on";
     private static final String CHAT_ID = "chat_id";
+    private static final String MENU_SHOWN = "menu_shown";
 
     /** The stored value that turns the evening reminder off. */
     static final String OFF = "off";
@@ -32,6 +33,15 @@ public class Settings {
 
     Settings(DiaryRepository repository) {
         this.repository = repository;
+    }
+
+    /** Whether the persistent keyboard has been put under the input field at least once. */
+    public boolean menuShown() throws SQLException {
+        return repository.setting(MENU_SHOWN).isPresent();
+    }
+
+    public void saveMenuShown() throws SQLException {
+        repository.putSetting(MENU_SHOWN, "1");
     }
 
     /** The reply language, or empty while the owner has not chosen one. */

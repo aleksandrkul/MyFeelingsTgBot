@@ -69,14 +69,28 @@ public class Telegram {
         return sendWithButtons(chatId, text, List.of(row));
     }
 
-    /** One message carrying inline buttons, laid out in the given rows. Null when it was not sent. */
+    /**
+     * Text with inline buttons, laid out in the given rows. Text longer than Telegram accepts is
+     * split like any other reply and the buttons go under its last part. Returns that last message,
+     * or null when it was not sent.
+     */
     Message sendWithButtons(Long chatId, String text, List<InlineKeyboardRow> rows) {
+        List<String> chunks = split(text, MESSAGE_LIMIT);
+        if (chunks.isEmpty()) {
+            return null;
+        }
+        for (String chunk : chunks.subList(0, chunks.size() - 1)) {
+            if (attempt(SendMessage.builder().chatId(chatId).text(chunk).build(),
+                    "a reply to chat " + chatId) == null) {
+                return null;
+            }
+        }
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
-                .text(text)
+                .text(chunks.get(chunks.size() - 1))
                 .replyMarkup(InlineKeyboardMarkup.builder().keyboard(rows).build())
                 .build();
-        return attempt(message, "buttons for chat " + chatId);
+        return attempt(message, "buttons for chat " + chatId + " (" + chunks.get(chunks.size() - 1).length() + " chars)");
     }
 
     /**
